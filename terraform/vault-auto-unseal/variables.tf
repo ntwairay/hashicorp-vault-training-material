@@ -72,7 +72,14 @@ variable "consul_cluster_tag_key" {
   default     = "consul-servers"
 }
 
-variable "vpc_id" {
-  description = "The ID of the VPC to deploy into. Leave an empty string to use the Default VPC in this region."
-  default     = ""
+variable "subnet_tags" {
+  description = "Tags used to find subnets for vault and consul servers"
+  type        = "map"
+  default     = {}
+}
+
+variable "vpc_tags" {
+  description = "Tags used to find a vpc for building resources in"
+  type        = "map"
+  default     = {}
 }

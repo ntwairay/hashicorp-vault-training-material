@@ -144,12 +144,13 @@ data "template_file" "user_data_consul" {
 # ---------------------------------------------------------------------------------------------------------------------
 
 data "aws_vpc" "default" {
-  default = "${var.vpc_id == "" ? true : false}"
-  id      = "${var.vpc_id}"
+  default = "${var.use_default_vpc}"
+  tags    = "${var.vpc_tags}"
 }
 
 data "aws_subnet_ids" "default" {
   vpc_id = "${data.aws_vpc.default.id}"
+  tags   = "${var.subnet_tags}"
 }
 
 data "aws_region" "current" {}
