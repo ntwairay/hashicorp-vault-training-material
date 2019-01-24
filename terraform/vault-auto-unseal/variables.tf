@@ -14,17 +14,10 @@
 
 variable "ami_id" {
   description = "The ID of the AMI to run in the cluster. This should be an AMI built from the Packer template under examples/vault-consul-ami/vault-consul.json."
-  default = "ami-0f9558aa8b9d0a3e8"
 }
 
 variable "ssh_key_name" {
   description = "The name of an EC2 Key Pair that can be used to SSH to the EC2 Instances in this cluster. Set to an empty string to not associate a Key Pair."
-   default = "ray-test-key"
-}
-
-variable "auto_unseal_kms_key_alias" {
-  description = "The alias of AWS KMS key used for encryption and decryption"
-  default = "vault"
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -82,4 +75,24 @@ variable "vpc_tags" {
   description = "Tags used to find a vpc for building resources in"
   type        = "map"
   default     = {}
+}
+
+variable "auto_unseal_kms_key_deletion_days" {
+  description = "deleteion of kms key period"
+  default     = 30
+}
+
+variable "auto_unseal_kms_key_rotation" {
+  description = "rotation of the kms key"
+  default     = true
+}
+
+variable "auto_unseal_kms_key_alias" {
+  description = "The alias of AWS KMS key used for encryption and decryption"
+  default = "vault"
+}
+
+variable "auto_unseal_kms_key_stage" {
+  description = "The stage of this kms"
+  default = "staging"
 }
