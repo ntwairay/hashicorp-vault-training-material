@@ -1,0 +1,140 @@
+{
+  "min_packer_version": "0.12.0",
+  "variables": {
+    "aws_region": "ap-southeast-2",
+    "vault_version": "1.0.0",
+    "consul_module_version": "v0.4.2",
+    "consul_version": "1.3.1",
+    "consul_download_url": "{{env `CONSUL_DOWNLOAD_URL`}}",
+    "vault_download_url": "{{env `VAULT_DOWNLOAD_URL`}}",
+    "install_auth_signing_script": "true",
+    "ca_public_key_path": "./tls/ca.crt.pem",
+    "tls_public_key_path": "./tls/vault.crt.pem",
+    "tls_private_key_path": "./tls/vault.key.pem",
+    "AWS_ACCESS_KEY_ID": "{{env `AWS_ACCESS_KEY_ID`}}",
+    "AWS_SECRET_ACCESS_KEY": "{{env `AWS_SECRET_ACCESS_KEY`}}",
+    "AWS_DEFAULT_REGION": "{{env `AWS_DEFAULT_REGION`}}"
+  },
+  "builders": [{
+    "ami_name": "vault-consul-ubuntu-{{isotime | clean_ami_name}}-{{uuid}}",
+    "ami_description": "An Ubuntu 16.04 AMI that has Vault and Consul installed.",
+    "instance_type": "t2.micro",
+    "name": "ubuntu16-ami",
+    "region": "{{user `aws_region`}}",
+    "type": "amazon-ebs",
+    "source_ami_filter": {
+      "filters": {
+        "virtualization-type": "hvm",
+        "architecture": "x86_64",
+        "name": "*ubuntu-xenial-16.04-amd64-server-*",
+        "block-device-mapping.volume-type": "gp2",
+        "root-device-type": "ebs"
+      },
+      "owners": ["099720109477"],
+      "most_recent": true
+    },
+    "ssh_username": "ubuntu"
+  },{
+    "ami_name": "vault-consul-amazon-linux-{{isotime | clean_ami_name}}-{{uuid}}",
+    "ami_description": "An Amazon Linux AMI that has Vault and Consul installed.",
+    "instance_type": "t2.micro",
+    "name": "amazon-linux-ami",
+    "region": "{{user `aws_region`}}",
+    "type": "amazon-ebs",
+    "source_ami_filter": {
+      "filters": {
+        "virtualization-type": "hvm",
+        "architecture": "x86_64",
+        "name": "*amzn-ami-hvm-*",
+        "block-device-mapping.volume-type": "gp2",
+        "root-device-type": "ebs"
+      },
+      "owners": ["amazon"],
+      "most_recent": true
+    },
+    "ssh_username": "ec2-user"
+  }],
+  "provisioners": [{
+    "type": "shell",
+    "inline": ["mkdir -p /tmp/terraform-aws-vault/modules"]
+  },{
+    "type": "file",
+    "source": "{{template_dir}}/../../modules/",
+    "destination": "/tmp/terraform-aws-vault/modules",
+    "pause_before": "30s"
+  },{
+    "type": "shell",
+    "inline": [
+      "export AWS_ACCESS_KEY_ID={{user `AWS_ACCESS_KEY_ID`}}",
+      "export AWS_SECRET_ACCESS_KEY={{user `AWS_SECRET_ACCESS_KEY`}}",
+      "export AWS_DEFAULT_REGION={{user `AWS_DEFAULT_REGION`}}",
+      "sudo chmod -R 700 /tmp/terraform-aws-vault/modules/",
+      "if test -n \"{{user `vault_download_url`}}\"; then",
+      "/tmp/terraform-aws-vault/modules/install-vault/install-vault --download-url {{user `vault_download_url`}};",
+      "else",
+      "/tmp/terraform-aws-vault/modules/install-vault/install-vault --version {{user `vault_version`}};",
+      "fi"
+    ]
+  },{
+    "type": "file",
+    "source": "{{template_dir}}/auth/sign-request.py",
+    "destination": "/tmp/sign-request.py"
+  },{
+    "type": "file",
+    "source": "{{user `ca_public_key_path`}}",
+    "destination": "/tmp/ca.crt.pem"
+  },{
+    "type": "file",
+    "source": "{{user `tls_public_key_path`}}",
+    "destination": "/tmp/vault.crt.pem"
+  },{
+    "type": "file",
+    "source": "{{user `tls_private_key_path`}}",
+    "destination": "/tmp/vault.key.pem"
+},{
+    "type": "shell",
+    "inline": [
+      "if [ '{{user `install_auth_signing_script`}}' = 'true' ]; then",
+      "sudo mv /tmp/sign-request.py /opt/vault/scripts/",
+      "else",
+      "sudo rm /tmp/sign-request.py",
+      "fi",
+      "sudo mv /tmp/ca.crt.pem /opt/vault/tls/",
+      "sudo mv /tmp/vault.crt.pem /opt/vault/tls/",
+      "sudo mv /tmp/vault.key.pem /opt/vault/tls/",
+      "sudo chown -R vault:vault /opt/vault/tls/",
+      "sudo chmod -R 600 /opt/vault/tls",
+      "sudo chmod 700 /opt/vault/tls",
+      "sudo /tmp/terraform-aws-vault/modules/update-certificate-store/update-certificate-store --cert-file-path /opt/vault/tls/ca.crt.pem"
+    ]
+  },{
+    "type": "shell",
+    "inline": [
+      "sudo apt-get install -y git",
+      "if [ '{{user `install_auth_signing_script`}}' = 'true' ]; then",
+      "sudo apt-get install -y python-pip",
+      "LC_ALL=C && sudo pip install boto3",
+      "fi"
+    ],
+    "only": ["ubuntu16-ami"]
+  },{
+    "type": "shell",
+    "inline": [
+      "sudo yum install -y git"
+    ],
+    "only": ["amazon-linux-ami"]
+  },{
+    "type": "shell",
+    "inline": [
+      "export AWS_ACCESS_KEY_ID={{user `AWS_ACCESS_KEY_ID`}}",
+      "export AWS_SECRET_ACCESS_KEY={{user `AWS_SECRET_ACCESS_KEY`}}",
+      "export AWS_DEFAULT_REGION={{user `AWS_DEFAULT_REGION`}}",
+      "if test -n \"{{user `consul_download_url`}}\"; then",
+      " /tmp/terraform-aws-vault/modules/install-consul/install-consul --download-url {{user `consul_download_url`}};",
+      "else",
+      " /tmp/terraform-aws-vault/modules/install-consul/install-consul --version {{user `consul_version`}};",
+      "fi",
+      "/tmp/terraform-aws-vault/modules/install-dnsmasq/install-dnsmasq"
+    ]
+  }]
+}

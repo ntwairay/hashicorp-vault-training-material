@@ -1,0 +1,446 @@
+#!/bin/bash
+# This script is used to configure and run Vault on an AWS server.
+
+set -e
+
+readonly VAULT_CONFIG_FILE="default.hcl"
+readonly SUPERVISOR_CONFIG_PATH="/etc/supervisor/conf.d/run-vault.conf"
+
+readonly DEFAULT_PORT=8200
+readonly DEFAULT_LOG_LEVEL="info"
+
+readonly EC2_INSTANCE_METADATA_URL="http://169.254.169.254/latest/meta-data"
+
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_NAME="$(basename "$0")"
+
+function print_usage {
+  echo
+  echo "Usage: run-vault [OPTIONS]"
+  echo
+  echo "This script is used to configure and run Vault on an AWS server."
+  echo
+  echo "Options:"
+  echo
+  echo -e "  --tls-cert-file\tSpecifies the path to the certificate for TLS. Required. To use a CA certificate, concatenate the primary certificate and the CA certificate together."
+  echo -e "  --tls-key-file\tSpecifies the path to the private key for the certificate. Required."
+  echo -e "  --port\t\tThe port for Vault to listen on. Optional. Default is $DEFAULT_PORT."
+  echo -e "  --cluster-port\tThe port for Vault to listen on for server-to-server requests. Optional. Default is --port + 1."
+  echo -e "  --api-addr\t\tThe full address to use for Client Redirection when running Vault in HA mode. Defaults to \"https://[instance_ip]:$DEFAULT_PORT\". Optional."
+  echo -e "  --config-dir\t\tThe path to the Vault config folder. Optional. Default is the absolute path of '../config', relative to this script."
+  echo -e "  --bin-dir\t\tThe path to the folder with Vault binary. Optional. Default is the absolute path of the parent folder of this script."
+  echo -e "  --log-dir\t\tThe path to the Vault log folder. Optional. Default is the absolute path of '../log', relative to this script."
+  echo -e "  --log-level\t\tThe log verbosity to use with Vault. Optional. Default is $DEFAULT_LOG_LEVEL."
+  echo -e "  --user\t\tThe user to run Vault as. Optional. Default is to use the owner of --config-dir."
+  echo -e "  --skip-vault-config\tIf this flag is set, don't generate a Vault configuration file. Optional. Default is false."
+  echo -e "  --enable-s3-backend\tIf this flag is set, an S3 backend will be enabled in addition to the HA Consul backend. Default is false."
+  echo -e "  --s3-bucket\tSpecifies the S3 bucket to use to store Vault data. Only used if '--enable-s3-backend' is set."
+  echo -e "  --s3-bucket-region\tSpecifies the AWS region where '--s3-bucket' lives. Only used if '--enable-s3-backend' is set."
+  echo
+  echo "Optional Arguments for enabling the AWS KMS seal (Vault Enterprise or 1.0 and above):"
+  echo
+  echo -e "  --enable-auto-unseal\tIf this flag is set, enable the AWS KMS Auto-unseal feature. Default is false."
+  echo -e "  --auto-unseal-kms-key-id\tThe key id of the AWS KMS key to be used for encryption and decryption. Required if --enable-auto-unseal is enabled."
+  echo -e "  --auto-unseal-kms-key-region\tThe AWS region where the encryption key lives. Required if --enable-auto-unseal is enabled."
+  echo -e "  --auto-unseal-endpoint\tThe KMS API endpoint to be used to make AWS KMS requests. Optional. Defaults to \"\". Only used if --enable-auto-unseal is enabled."
+  echo
+  echo "Examples:"
+  echo
+  echo "  run-vault --tls-cert-file /opt/vault/tls/vault.crt.pem --tls-key-file /opt/vault/tls/vault.key.pem"
+  echo
+  echo "Or"
+  echo
+  echo "  run-vault --tls-cert-file /opt/vault/tls/vault.crt.pem --tls-key-file /opt/vault/tls/vault.key.pem --enable-s3-backend --s3-bucket my-vault-bucket --s3-bucket-region us-east-1"
+}
+
+function log {
+  local -r level="$1"
+  local -r message="$2"
+  local -r timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+  >&2 echo -e "${timestamp} [${level}] [$SCRIPT_NAME] ${message}"
+}
+
+function log_info {
+  local -r message="$1"
+  log "INFO" "$message"
+}
+
+function log_warn {
+  local -r message="$1"
+  log "WARN" "$message"
+}
+
+function log_error {
+  local -r message="$1"
+  log "ERROR" "$message"
+}
+
+# Based on code from: http://stackoverflow.com/a/16623897/483528
+function strip_prefix {
+  local -r str="$1"
+  local -r prefix="$2"
+  echo "${str#$prefix}"
+}
+
+function assert_not_empty {
+  local -r arg_name="$1"
+  local -r arg_value="$2"
+
+  if [[ -z "$arg_value" ]]; then
+    log_error "The value for '$arg_name' cannot be empty"
+    print_usage
+    exit 1
+  fi
+}
+
+function lookup_path_in_instance_metadata {
+  local -r path="$1"
+  curl --silent --location "$EC2_INSTANCE_METADATA_URL/$path/"
+}
+
+function get_instance_ip_address {
+  lookup_path_in_instance_metadata "local-ipv4"
+}
+
+function assert_is_installed {
+  local -r name="$1"
+
+  if [[ ! $(command -v ${name}) ]]; then
+    log_error "The binary '$name' is required by this script but is not installed or in the system's PATH."
+    exit 1
+  fi
+}
+
+function get_vault_version {
+  #Runs vault -v to get the vault version, then strips out everything but the version number.
+  #The current output format of vault -v is:
+  #Vault v0.10.4 ('e21712a687889de1125e0a12a980420b1a4f72d3')
+  /usr/local/bin/vault -v|awk '{print $2}'|tr -d v
+}
+
+function vault_version_at_least {
+  local -r config_path=$1
+  local -r ui_config=$2
+  VAULT_VERSION=$(get_vault_version)
+
+  #This if statement will echo the current vault version and the minimum version required for ui support.
+  #It then strips out the comments, sorts the two values, and chooses the top (least) one.
+  if [[ $(echo "$VAULT_VERSION 0.10.0" | tr " " "\n" |sort --version-sort| head -n 1) = 0.10.0 ]]
+    then
+      echo -e "$ui_config" >> "$config_path"
+    else
+      log_info "Vault 0.10.0 or greater is required for UI support."
+  fi
+}
+
+function generate_vault_config {
+  local -r tls_cert_file="$1"
+  local -r tls_key_file="$2"
+  local -r port="$3"
+  local -r cluster_port="$4"
+  local -r api_addr="$5"
+  local -r config_dir="$6"
+  local -r user="$7"
+  local -r enable_s3_backend="$8"
+  local -r s3_bucket="$9"
+  local -r s3_bucket_region="${10}"
+  local -r enable_auto_unseal="${11}"
+  local -r auto_unseal_kms_key_id="${12}"
+  local -r auto_unseal_kms_key_region="${13}"
+  local -r auto_unseal_endpoint="${14}"
+  local -r config_path="$config_dir/$VAULT_CONFIG_FILE"
+
+  local instance_ip_address
+  instance_ip_address=$(get_instance_ip_address)
+
+  local auto_unseal_config=""
+  if [[ "$enable_auto_unseal" == "true" ]]; then
+
+    local endpoint=""
+    if [[ -n "$auto_unseal_endpoint" ]]; then
+      endpoint="endpoint   = \"$auto_unseal_endpoint\""
+    fi
+
+    auto_unseal_config=$(cat <<EOF
+seal "awskms" {
+  kms_key_id = "$auto_unseal_kms_key_id"
+  region     = "$auto_unseal_kms_key_region"
+  $endpoint
+}\n
+EOF
+)
+  fi
+
+  log_info "Creating default Vault config file in $config_path"
+  local -r ui_config=$(cat <<EOF
+ui = true
+
+EOF
+)
+
+  local -r listener_config=$(cat <<EOF
+listener "tcp" {
+  address         = "0.0.0.0:$port"
+  cluster_address = "0.0.0.0:$cluster_port"
+  tls_cert_file   = "$tls_cert_file"
+  tls_key_file    = "$tls_key_file"
+}\n
+EOF
+)
+
+  local consul_storage_type="storage"
+  local s3_config=""
+  if [[ "$enable_s3_backend" == "true" ]]; then
+    s3_config=$(cat <<EOF
+storage "s3" {
+  bucket = "$s3_bucket"
+  region = "$s3_bucket_region"
+}\n
+EOF
+)
+    consul_storage_type="ha_storage"
+  fi
+
+  local -r consul_storage=$(cat <<EOF
+$consul_storage_type "consul" {
+  address = "127.0.0.1:8500"
+  path    = "vault/"
+  scheme  = "http"
+  service = "vault"
+}
+
+# HA settings
+cluster_addr  = "https://$instance_ip_address:$cluster_port"
+api_addr      = "$api_addr"
+
+EOF
+)
+
+  vault_version_at_least "$config_path" "$ui_config"
+
+  echo -e "$auto_unseal_config" >> "$config_path"
+  echo -e "$listener_config" >> "$config_path"
+  echo -e "$s3_config" >> "$config_path"
+  echo -e "$consul_storage" >> "$config_path"
+
+  chown "$user:$user" "$config_path"
+}
+
+function generate_supervisor_config {
+  local -r supervisor_config_path="$1"
+  local -r vault_config_dir="$2"
+  local -r vault_bin_dir="$3"
+  local -r vault_log_dir="$4"
+  local -r vault_log_level="$5"
+  local -r vault_user="$6"
+
+  log_info "Creating Supervisor config file to run Vault in $supervisor_config_path"
+  cat > "$supervisor_config_path" <<EOF
+[program:vault]
+command=$vault_bin_dir/vault server -config $vault_config_dir -log-level=$vault_log_level
+stdout_logfile=$vault_log_dir/vault-stdout.log
+stderr_logfile=$vault_log_dir/vault-error.log
+numprocs=1
+autostart=true
+autorestart=true
+stopsignal=INT
+user=$vault_user
+EOF
+}
+
+function start_vault {
+  log_info "Reloading Supervisor config and starting Vault"
+  supervisorctl reread
+  supervisorctl update
+}
+
+# Based on: http://unix.stackexchange.com/a/7732/215969
+function get_owner_of_path {
+  local -r path="$1"
+  ls -ld "$path" | awk '{print $3}'
+}
+
+function run {
+  local tls_cert_file=""
+  local tls_key_file=""
+  local port="$DEFAULT_PORT"
+  local cluster_port=""
+  local api_addr=""
+  local config_dir=""
+  local bin_dir=""
+  local log_dir=""
+  local log_level="$DEFAULT_LOG_LEVEL"
+  local user=""
+  local skip_vault_config="false"
+  local enable_s3_backend="false"
+  local s3_bucket=""
+  local s3_bucket_region=""
+  local enable_auto_unseal="false"
+  local auto_unseal_kms_key_id=""
+  local auto_unseal_kms_key_region=""
+  local auto_unseal_endpoint=""
+  local all_args=()
+
+  while [[ $# > 0 ]]; do
+    local key="$1"
+
+    case "$key" in
+      --tls-cert-file)
+        tls_cert_file="$2"
+        shift
+        ;;
+      --tls-key-file)
+        tls_key_file="$2"
+        shift
+        ;;
+      --port)
+        assert_not_empty "$key" "$2"
+        port="$2"
+        shift
+        ;;
+      --cluster-port)
+        assert_not_empty "$key" "$2"
+        cluster_port="$2"
+        shift
+        ;;
+      --config-dir)
+        assert_not_empty "$key" "$2"
+        config_dir="$2"
+        shift
+        ;;
+       --api-addr)
+        assert_not_empty "$key" "$2"
+        api_addr="$2"
+        shift
+        ;;
+      --bin-dir)
+        assert_not_empty "$key" "$2"
+        bin_dir="$2"
+        shift
+        ;;
+      --log-dir)
+        assert_not_empty "$key" "$2"
+        log_dir="$2"
+        shift
+        ;;
+      --log-level)
+        assert_not_empty "$key" "$2"
+        log_level="$2"
+        shift
+        ;;
+      --user)
+        assert_not_empty "$key" "$2"
+        user="$2"
+        shift
+        ;;
+      --skip-vault-config)
+        skip_vault_config="true"
+        ;;
+      --enable-s3-backend)
+        enable_s3_backend="true"
+        ;;
+      --s3-bucket)
+        s3_bucket="$2"
+        shift
+        ;;
+      --s3-bucket-region)
+        s3_bucket_region="$2"
+        shift
+        ;;
+      --enable-auto-unseal)
+        enable_auto_unseal="true"
+        ;;
+      --auto-unseal-kms-key-id)
+        auto_unseal_kms_key_id="$2"
+        shift
+        ;;
+      --auto-unseal-kms-key-region)
+        auto_unseal_kms_key_region="$2"
+        shift
+        ;;
+      --auto-unseal-endpoint)
+        auto_unseal_endpoint="$2"
+        shift
+        ;;
+      --help)
+        print_usage
+        exit
+        ;;
+      *)
+        log_error "Unrecognized argument: $key"
+        print_usage
+        exit 1
+        ;;
+    esac
+
+    shift
+  done
+
+  assert_not_empty "--tls-cert-file" "$tls_cert_file"
+  assert_not_empty "--tls-key-file" "$tls_key_file"
+
+  if [[ "$enable_s3_backend" == "true" ]]; then
+    assert_not_empty "--s3-bucket" "$s3_bucket"
+    assert_not_empty "--s3-bucket-region" "$s3_bucket_region"
+  fi
+
+  assert_is_installed "supervisorctl"
+  assert_is_installed "aws"
+  assert_is_installed "curl"
+  assert_is_installed "jq"
+
+  if [[ -z "$config_dir" ]]; then
+    config_dir=$(cd "$SCRIPT_DIR/../config" && pwd)
+  fi
+
+  if [[ -z "$bin_dir" ]]; then
+    bin_dir=$(cd "$SCRIPT_DIR/../bin" && pwd)
+  fi
+
+  if [[ -z "$log_dir" ]]; then
+    log_dir=$(cd "$SCRIPT_DIR/../log" && pwd)
+  fi
+
+  if [[ -z "$user" ]]; then
+    user=$(get_owner_of_path "$config_dir")
+  fi
+
+  if [[ -z "$cluster_port" ]]; then
+    cluster_port=$(( $port + 1 ))
+  fi
+
+  if [[ -z "$api_addr" ]]; then
+    api_addr="https://$(get_instance_ip_address):${port}"
+  fi
+
+  if [[ "$enable_auto_unseal" == "true" ]]; then
+    log_info "The --enable-auto-unseal flag is set to true"
+    assert_not_empty "--auto-unseal-kms-key-id" "$auto_unseal_kms_key_id"
+    assert_not_empty "--auto-unseal-kms-key-region" "$auto_unseal_kms_key_region"
+  fi
+
+  if [[ "$skip_vault_config" == "true" ]]; then
+    log_info "The --skip-vault-config flag is set, so will not generate a default Vault config file."
+  else
+    generate_vault_config \
+      "$tls_cert_file" \
+      "$tls_key_file" \
+      "$port" \
+      "$cluster_port" \
+      "$api_addr" \
+      "$config_dir" \
+      "$user" \
+      "$enable_s3_backend" \
+      "$s3_bucket" \
+      "$s3_bucket_region" \
+      "$enable_auto_unseal" \
+      "$auto_unseal_kms_key_id" \
+      "$auto_unseal_kms_key_region" \
+      "$auto_unseal_endpoint"
+  fi
+
+  generate_supervisor_config "$SUPERVISOR_CONFIG_PATH" "$config_dir" "$bin_dir" "$log_dir" "$log_level" "$user"
+  start_vault
+}
+
+run "$@"
