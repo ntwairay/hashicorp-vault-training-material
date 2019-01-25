@@ -71,6 +71,12 @@ variable "subnet_tags" {
   default     = {}
 }
 
+variable "public_subnet_tags" {
+  description = "Tags used to find subnets for vault and consul servers"
+  type        = "map"
+  default     = {}
+}
+
 variable "vpc_tags" {
   description = "Tags used to find a vpc for building resources in"
   type        = "map"

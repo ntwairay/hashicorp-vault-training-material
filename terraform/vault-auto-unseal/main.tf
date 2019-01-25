@@ -7,6 +7,34 @@ terraform {
   required_version = ">= 0.11.0"
 }
 
+data "aws_ami" "ubuntu" {
+  most_recent = true
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-trusty-14.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  owners = ["099720109477"] # Canonical
+}
+
+resource "aws_instance" "bastion" {
+  ami                         = "${data.aws_ami.ubuntu.id}"
+  instance_type               = "t2.micro"
+  subnet_id                   = "${data.aws_subnet_ids.public.ids[0]}"
+  associate_public_ip_address = true
+  key_name                    = "${var.ssh_key_name}"
+  security_groups             = ["${module.vault_cluster.security_group_id}"]
+  tags = {
+    Name = "bastion"
+  }
+}
+
 module "kms_key" {
   source                  = "git::https://github.com/cloudposse/terraform-aws-kms-key.git?ref=master"
   namespace               = "vibrato"
@@ -53,6 +81,57 @@ module "vault_cluster" {
   allowed_inbound_security_group_count = 0
   ssh_key_name                         = "${var.ssh_key_name}"
 }
+
+# ---------------------------------------------------------------------------------------------------------------------
+# ATTACH ALB for vault port ui access
+# The security group should restrict internal access only
+# ---------------------------------------------------------------------------------------------------------------------
+
+/*module "elb_http" {
+  source = "terraform-aws-modules/elb/aws"
+
+  name = "elb-example"
+
+  subnets         = "${data.aws_subnet_ids.default.ids}"
+  security_groups = ["${module.vault_cluster.security_group_id}"]
+  internal        = false
+
+  listener = [
+    {
+      instance_port     = "8200"
+      instance_protocol = "TCP"
+      lb_port           = "443"
+      lb_protocol       = "HTTPS"
+    },
+  ]
+
+  health_check = [
+    {
+      target              = "HTTPS:8200/"
+      interval            = 30
+      healthy_threshold   = 2
+      unhealthy_threshold = 2
+      timeout             = 5
+    },
+  ]
+
+  // ELB attachments
+  number_of_instances = "${var.vault_cluster_size}"
+  instances           = "${data.aws_instances.vault-instance.ids}"
+
+  tags = {
+    Owner       = "user"
+    Environment = "dev"
+  }
+}
+
+data "aws_instances" "vault-instance" {
+  instance_tags {
+    Name = "${var.vault_cluster_name}"
+  }
+
+  instance_state_names = ["running"]
+}*/
 
 # ---------------------------------------------------------------------------------------------------------------------
 # ATTACH IAM POLICIES FOR CONSUL
@@ -157,6 +236,11 @@ data "aws_vpc" "default" {
 data "aws_subnet_ids" "default" {
   vpc_id = "${data.aws_vpc.default.id}"
   tags   = "${var.subnet_tags}"
+}
+
+data "aws_subnet_ids" "public" {
+  vpc_id = "${data.aws_vpc.default.id}"
+  tags   = "${var.public_subnet_tags}"
 }
 
 data "aws_region" "current" {}
