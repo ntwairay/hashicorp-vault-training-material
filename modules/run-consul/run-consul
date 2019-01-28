@@ -300,7 +300,7 @@ EOF
   $bootstrap_expect
   "client_addr": "0.0.0.0",
   "datacenter": "$datacenter",
-  "node_name": "$instance_id",
+  "node_name": "$instance_id.consul",
   $retry_join_json
   "server": $server,
   $gossip_encryption_configuration
