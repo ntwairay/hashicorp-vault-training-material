@@ -415,19 +415,3 @@ variable "default_vpc_tags" {
   description = "Additional tags for the Default VPC"
   default     = {}
 }
-
-variable "create_vpc_peering" {
-  default     = false
-}
-
-variable "peer_region" {
-  default = "us-west-1"
-}
-
-variable "destination_cidr_block" {
-  default = "10.2.0.0/24"
-}
-
-variable "vpc_peering_connection_id" {
-  default = ""
-}
