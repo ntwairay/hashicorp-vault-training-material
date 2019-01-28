@@ -21,9 +21,6 @@ data "aws_route_table" "r2" {
 }
 
 module "vpc_peering_route" {
-  # When using these modules in your own templates, you will need to use a Git URL with a ref attribute that pins you
-  # to a specific version of the modules, such as the following example:
-  # source = "github.com/hashicorp/terraform-aws-consul.git/modules/vault-cluster?ref=v0.0.1"
   source                      = "../../modules/vpc-peering-route"
   vpc_private_route_table_ids =["${data.aws_route_table.r1.route_table_id}", "${data.aws_route_table.r2.route_table_id}" ]
   peer_cidr_block             = "${var.peer_cidr_block}"

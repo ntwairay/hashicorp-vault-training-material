@@ -83,57 +83,6 @@ module "vault_cluster" {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
-# ATTACH ALB for vault port ui access
-# The security group should restrict internal access only
-# ---------------------------------------------------------------------------------------------------------------------
-
-/*module "elb_http" {
-  source = "terraform-aws-modules/elb/aws"
-
-  name = "elb-example"
-
-  subnets         = "${data.aws_subnet_ids.default.ids}"
-  security_groups = ["${module.vault_cluster.security_group_id}"]
-  internal        = false
-
-  listener = [
-    {
-      instance_port     = "8200"
-      instance_protocol = "TCP"
-      lb_port           = "443"
-      lb_protocol       = "HTTPS"
-    },
-  ]
-
-  health_check = [
-    {
-      target              = "HTTPS:8200/"
-      interval            = 30
-      healthy_threshold   = 2
-      unhealthy_threshold = 2
-      timeout             = 5
-    },
-  ]
-
-  // ELB attachments
-  number_of_instances = "${var.vault_cluster_size}"
-  instances           = "${data.aws_instances.vault-instance.ids}"
-
-  tags = {
-    Owner       = "user"
-    Environment = "dev"
-  }
-}
-
-data "aws_instances" "vault-instance" {
-  instance_tags {
-    Name = "${var.vault_cluster_name}"
-  }
-
-  instance_state_names = ["running"]
-}*/
-
-# ---------------------------------------------------------------------------------------------------------------------
 # ATTACH IAM POLICIES FOR CONSUL
 # To allow our Vault servers to automatically discover the Consul servers, we need to give them the IAM permissions from
 # the Consul AWS Module's consul-iam-policies module.
