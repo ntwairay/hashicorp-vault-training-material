@@ -52,10 +52,14 @@ if ! vault operator init -status >/dev/null; then
   cat /tmp/init | tr '\n' ' ' | jq -r .recovery_keys[0] | consul kv put service/vault/unseal-key -
   cat /tmp/init | tr '\n' ' ' | jq -r .root_token | consul kv put service/vault/root-token -
 
+  vault auth enable -description="Authenticate using GitHub" github
+  vault write auth/github/config organization=vibrato
+  vault write auth/github/map/teams/vibrato-engineers value=admin
+
   # shred /tmp/unseal-key /tmp/init
 fi
 
-sleep 20
+sleep 30
 
 KEY="$(consul kv get service/vault/unseal-key)"
 if [ "$KEY" ]; then
