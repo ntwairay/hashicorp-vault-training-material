@@ -8,5 +8,5 @@ variable "peer_cidr_block" {
 }
 
 variable "peer_connection_id" {
-  description = "The ip address range of the network"
+  description = "The peer connection id"
 }
