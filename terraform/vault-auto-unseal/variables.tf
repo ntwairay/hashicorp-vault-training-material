@@ -67,14 +67,14 @@ variable "consul_cluster_tag_key" {
 
 variable "subnet_tags" {
   description = "Tags used to find subnets for vault and consul servers"
-  type        = "map"
-  default     = {}
+  type        = "list"
+  default     = []
 }
 
 variable "public_subnet_tags" {
   description = "Tags used to find subnets for vault and consul servers"
-  type        = "map"
-  default     = {}
+  type        = "list"
+  default     = []
 }
 
 variable "vpc_tags" {
