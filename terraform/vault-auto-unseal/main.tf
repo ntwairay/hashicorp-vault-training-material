@@ -184,12 +184,18 @@ data "aws_vpc" "default" {
 
 data "aws_subnet_ids" "default" {
   vpc_id = "${data.aws_vpc.default.id}"
-  tags   = "${var.subnet_tags}"
+  filter {
+    name   = "tag:Name"
+    values = "${var.subnet_tags}"
+  }
 }
 
 data "aws_subnet_ids" "public" {
   vpc_id = "${data.aws_vpc.default.id}"
-  tags   = "${var.public_subnet_tags}"
+  filter {
+    name   = "tag:Name"
+    values = "${var.public_subnet_tags}"
+  }
 }
 
 data "aws_region" "current" {}
