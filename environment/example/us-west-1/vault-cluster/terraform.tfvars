@@ -1,4 +1,4 @@
-ami_id                    = "ami-033cd038d6d9ab95f"
+ami_id                    = "ami-0326a0906085ec849"
 ssh_key_name              = "vibrato-uswest1"
 vault_cluster_name        = "vibrato-uswest-1-vault"
 consul_cluster_name        = "vibrato-uswest-1-consul"
