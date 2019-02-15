@@ -64,7 +64,7 @@ module "vault_cluster" {
   user_data = "${data.template_file.user_data_vault_cluster.rendered}"
 
   vpc_id     = "${data.aws_vpc.default.id}"
-  subnet_ids = "${data.aws_subnet_ids.default.ids}"
+  subnet_ids = "${data.aws_subnet_ids.private.ids}"
 
   # This setting will create the AWS policy that allows the vault cluster to
   # access KMS and use this key for encryption and decryption
@@ -147,7 +147,7 @@ module "consul_cluster" {
   user_data = "${data.template_file.user_data_consul.rendered}"
 
   vpc_id     = "${data.aws_vpc.default.id}"
-  subnet_ids = "${data.aws_subnet_ids.default.ids}"
+  subnet_ids = "${data.aws_subnet_ids.private.ids}"
 
   # To make testing easier, we allow Consul and SSH requests from any IP address here but in a production
   # deployment, we strongly recommend you limit this to the IP address ranges of known, trusted servers inside your VPC.
@@ -182,7 +182,7 @@ data "aws_vpc" "default" {
   tags    = "${var.vpc_tags}"
 }
 
-data "aws_subnet_ids" "default" {
+data "aws_subnet_ids" "private" {
   vpc_id = "${data.aws_vpc.default.id}"
   filter {
     name   = "tag:Name"
