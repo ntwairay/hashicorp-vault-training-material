@@ -17,7 +17,7 @@ Demonstrate usage of Vault Identity with username & password and a GitHub token 
 - S3 Buckets
 
 ## Minimum AWS Foundation in each region
->> This minimum requirement is used for testing purpose only, therefore its security setting is not completely secured. If you would like to deploy it into a production environment then you will have to reconfigure the NACL and security groups
+> This minimum requirement is used for testing purpose only, therefore its security setting is not completely secured. If you would like to deploy it into a production environment then you will have to reconfigure the NACL and security groups
 
 - VPC
 - two public subnets and two private subnets
