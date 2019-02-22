@@ -1,4 +1,5 @@
-name                = "vibratoRetailUsWest1"
+name                = "hashicorptestUsWest1"
+region              = "us-west-1"
 cidr                = "10.1.0.0/16"
 azs                 = ["us-west-1a", "us-west-1b"]
 private_subnets     = ["10.1.1.0/28", "10.1.2.0/28"]

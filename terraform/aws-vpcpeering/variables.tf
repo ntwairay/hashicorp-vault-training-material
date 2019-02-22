@@ -1,5 +1,5 @@
 variable "peer_remote_state_aws_foundation_bucket" {
-  default = "vibrato-retail-state-us-west-2"
+  default = ""
 }
 
 variable "peer_region" {
@@ -22,4 +22,8 @@ variable "vpc_tags" {
 
 variable "peer_bucket_key" {
   default = "vpc"
+}
+
+variable "region" {
+  default = ""
 }

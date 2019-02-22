@@ -102,3 +102,7 @@ variable "auto_unseal_kms_key_stage" {
   description = "The stage of this kms"
   default = "staging"
 }
+
+variable "region" {
+  default = ""
+}

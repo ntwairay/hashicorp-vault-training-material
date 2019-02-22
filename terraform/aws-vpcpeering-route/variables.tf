@@ -1,5 +1,5 @@
 variable "remote_state_aws_foundation_bucket" {
-  default = "vibrato-retail-state-us-west-1"
+  default = ""
 }
 
 variable "route_table_tag_name" {
@@ -20,4 +20,8 @@ variable "peer_cidr_block" {
 
 variable "bucket_key" {
   default = "vpcpeering"
+}
+
+variable "region" {
+  default = ""
 }

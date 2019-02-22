@@ -1,4 +1,4 @@
-domainName      = "vibratoRetail.lan"
+domainName      = "hashicorp.lan"
 domainPassword  = "SuperPassw0rd!"
 subnet_tags     = ["vibratoRetailUsWest2-private-us-west-2a","vibratoRetailUsWest2-private-us-west-2b"]
 vpc_tags        = { Name = "vibratoRetailUsWest2"}

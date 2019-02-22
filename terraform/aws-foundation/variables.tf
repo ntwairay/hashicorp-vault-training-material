@@ -1,3 +1,8 @@
+variable "region" {
+  description = "deployment region in aws"
+  default     = "us-west-1"
+}
+
 variable "create_vpc" {
   description = "Controls if VPC should be created (it affects almost all resources)"
   default     = true

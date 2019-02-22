@@ -6,6 +6,10 @@ terraform {
   required_version = ">= 0.9.3"
 }
 
+provider "aws" {
+  region = "${var.region}"
+}
+
 data "aws_vpc" "default" {
   tags = "${var.vpc_tags}"
 }

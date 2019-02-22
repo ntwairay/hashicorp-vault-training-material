@@ -6,6 +6,10 @@ terraform {
   required_version = ">= 0.9.3"
 }
 
+provider "aws" {
+  region = "${var.region}"
+}
+
 data "aws_route_table" "r1" {
   filter {
     name   = "${var.route_table_tag_name}"

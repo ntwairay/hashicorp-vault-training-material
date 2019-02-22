@@ -1,7 +1,7 @@
 terraform {
   backend "s3" {
-    bucket = ""
-    key    = "vpcpeering-route"
+    bucket = "hashicorp-vibrato"
+    key    = ""
     region = "us-west-1"
     encrypt = true
   }
