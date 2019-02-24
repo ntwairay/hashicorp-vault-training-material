@@ -1,6 +1,6 @@
 remote_state_aws_foundation_bucket  = "hashicorp-vibrato"
 region                              = "us-west-1"
-bucket_key                          = "vpcpeering"
+bucket_key                          = "aws-vpcpeering-us-west-1"
 route_table_tag_name                = "tag:Name"
 r1_tag_values                       = ["hashicorptestUsWest1-private-us-west-1a"]
 r2_tag_values                       = ["hashicorptestUsWest1-private-us-west-1b"]

@@ -7,4 +7,4 @@ subnet_tags               = ["hashicorptestUsWest1-private-us-west-1a","hashicor
 public_subnet_tags        = ["hashicorptestUsWest1-public-us-west-1a"]
 vpc_tags                  = { Name = "hashicorptestUsWest1"}
 auto_unseal_kms_key_stage = "UAT"
-auto_unseal_kms_key_alias = "vault"
+auto_unseal_kms_key_alias = "vault-test"
