@@ -1,0 +1,206 @@
+#!/bin/bash
+
+# Setup path
+readonly DIR=$(cd `dirname $0` && pwd)
+readonly TERRAFORM_PATH="terraform"
+readonly ENVIRONMENT_PATH="environment/example"
+readonly FOUNDATION_PATH="aws-foundation"
+readonly VAULT_CLUSTER_PATH="vault-auto-unseal"
+readonly VPC_PEERING_PATH="aws-vpcpeering"
+readonly PEERING_ROUTE_PATH="aws-vpcpeering-route"
+readonly AD_PATH="aws-ad"
+readonly STATE_PATH=".terraform/terraform.tfstate"
+readonly REGION1="us-west-1"
+readonly REGION2="us-west-2"
+
+function print_usage {
+  echo
+  echo "Usage: run-tf apply | destroy [OPTIONS] [REGION]"
+  echo
+  echo "This script is used to deploy terraform component to AWS environment."
+  echo
+  echo "Options:"
+  echo
+  echo -e "  --aws-foundation [REGION]\tDeploy the aws-foundation into your AWS environment"
+  echo -e "  --aws-vpcpeering [REGION]\tCreate vpc peering connection between two VPCs (Require two AWS VPCs in two different Regions)"
+  echo -e "  --aws-vpcpeering-route [REGION]\tConfigure the routing table (Require VPC Peering connection)"
+  echo -e "  --vault-kms-cluster [REGION]\tCreate Vault Cluster under private subnets usign kms for auto unseal"
+  echo -e "  --aws-ad [REGION]\tCreate a simple AD which can be used in ldap testing"
+  echo -e "  --demo\tDeploy the entire demo into your AWS environments"
+  echo -e "  --help\tPrint usage page"
+  echo "Examples 1:"
+  echo
+  echo "  run-tf apply --demo"
+  echo
+  echo "Or"
+  echo
+  echo "  run-tf apply --aws-foundation 'us-west-1 us-west-2'     "
+}
+
+function assert_not_empty {
+  local -r arg_name="$1"
+  local -r arg_value="$2"
+
+  if [[ -z "$arg_value" ]]; then
+    log_error "The value for '$arg_name' cannot be empty"
+    print_usage
+    exit 1
+  fi
+}
+
+# run terraform init
+function terraform_init {
+  echo "Running terraform init at $STACK ʘ‿ʘ !!!"
+  terraform init -backend-config="key=$STACK-$REGION"
+}
+# deploy terraform
+function terraform_execute {
+  echo "Running terraform $COMMAND at $REGION/$STACK ᕕ(ᐛ)ᕗ !!!"
+  terraform $COMMAND -var-file="$DIR/$ENVIRONMENT_PATH/$REGION/$STACK/terraform.tfvars" -auto-approve
+}
+# clean up tfstate file
+function terraform_cleanup {
+  echo "Removing terraform.tfstate in $STACK ʘ‿ʘ !!!"
+  rm ./$STATE_PATH
+  echo "(☞ﾟヮﾟ)☞ $COMMAND $STACK at $REGION is done ☜(ﾟヮﾟ☜)"
+}
+
+# deploy aws foundation such as VPC, Subnets, NAT and IG etc
+function deploy_aws_foundation {
+  local -r REGION="$1"
+  local -r STACK="$FOUNDATION_PATH"
+  cd "$DIR/$TERRAFORM_PATH/$STACK"
+  terraform_init
+  terraform_execute
+  terraform_cleanup
+}
+# deploy aws vpc peering
+function deploy_aws_vpc_peering {
+  local -r REGION="$1"
+  local -r STACK="$VPC_PEERING_PATH"
+  cd "$DIR/$TERRAFORM_PATH/$STACK"
+  terraform_init
+  terraform_execute
+  terraform_cleanup
+}
+# deploy peering route
+function deploy_aws_peering_route {
+  local -r REGION="$1"
+  local -r STACK="$PEERING_ROUTE_PATH"
+  cd "$DIR/$TERRAFORM_PATH/$STACK"
+  terraform_init
+  terraform_execute
+  terraform_cleanup
+}
+# deploy vault cluster
+function deploy_vault_cluster {
+  local -r REGION="$1"
+  local -r STACK="$VAULT_CLUSTER_PATH"
+  cd "$DIR/$TERRAFORM_PATH/$STACK"
+  terraform_init
+  terraform_execute
+  terraform_cleanup
+}
+# deploy simple ad
+function deploy_ad {
+  local -r REGION="$1"
+  local -r STACK="$AD_PATH"
+  cd "$DIR/$TERRAFORM_PATH/$STACK"
+  terraform_init
+  terraform_execute
+  terraform_cleanup
+}
+
+function deploy_demo {
+  if [[ "$COMMAND"  == "apply" ]]; then
+    deploy_aws_foundation $REGION1
+    deploy_aws_foundation $REGION2
+    deploy_aws_vpc_peering $REGION1
+    deploy_aws_peering_route $REGION1
+    deploy_aws_peering_route $REGION2
+    deploy_vault_cluster $REGION1
+    deploy_vault_cluster $REGION2
+  fi
+  if [[ "$COMMAND"  == "destroy" ]]; then
+    deploy_aws_foundation $REGION1
+    deploy_aws_foundation $REGION2
+    deploy_aws_vpc_peering $REGION1
+    deploy_aws_peering_route $REGION1
+    deploy_aws_peering_route $REGION2
+    deploy_vault_cluster $REGION1
+    deploy_vault_cluster $REGION2
+  fi
+}
+
+function run {
+  local COMMAND="$1"
+  if ["$COMMAND" != "apply" || "$COMMAND" != "destroy" ]; then
+    echo "Unrecognized argument"
+    exit 1
+  fi
+  shift
+
+  while [[ $# > 0 ]]; do
+    local key="$1"
+
+    case "$key" in
+      --demo)
+        deploy_demo
+        exit
+        ;;
+      --aws-foundation)
+        assert_not_empty "$key" "$2"
+        regionList="$2"
+        for region in $regionList; do
+            deploy_aws_foundation $region
+        done
+        exit
+        ;;
+      --aws-vpcpeering)
+        assert_not_empty "$key" "$2"
+        regionList="$2"
+        for region in $regionList; do
+            deploy_aws_vpc_peering $region
+        done
+        exit
+        ;;
+      --aws-vpcpeering-route)
+        assert_not_empty "$key" "$2"
+        regionList="$2"
+        for region in $regionList; do
+            deploy_aws_peering_route $region
+        done
+        exit
+        ;;
+      --vault-kms-cluster)
+        assert_not_empty "$key" "$2"
+        regionList="$2"
+        for region in $regionList; do
+            deploy_vault_cluster $region
+        done
+        exit
+        ;;
+      --aws-ad)
+        assert_not_empty "$key" "$2"
+        regionList="$2"
+        for region in $regionList; do
+            deploy_ad $region
+        done
+        exit
+        ;;
+      --help)
+        print_usage
+        exit
+        ;;
+      *)
+        echo "Unrecognized argument: $key"
+        #print_usage
+        exit 1
+        ;;
+    esac
+
+    shift
+  done
+}
+
+run "$@"
