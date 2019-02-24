@@ -71,7 +71,7 @@ Demonstrate usage of Vault Identity with username & password and a GitHub token 
 > This is a helper script for deploying the entire demo into your AWS environment using the sample tfvars values in ./environment/exmaple/
 
 ```
-├── run_tf
+├── run-tf
 ```
 
 ### Export Environment Variables
@@ -84,7 +84,7 @@ export AWS_DEFAULT_REGION=us-west-1
 ### Deploy demo
 > This command will deploy the entire demo infrastructure into two regions us-west-1 and us-west-2
 ```
-sh ./run_tf apply --demo
+sh ./run-tf apply --demo
 ```
 
 - Create two VPCs, 2 or 3 public subnets, 2 or 3 private subnets, Internet Gateway, Nat Gateway, Security Groups, NACL and Route Tables
@@ -94,7 +94,7 @@ sh ./run_tf apply --demo
 
 > This command will destroy the demo
 ```
-sh ./run_tf destroy --demo
+sh ./run-tf destroy --demo
 ```
 
 ### Deploy individually
@@ -104,26 +104,26 @@ sh ./run_tf destroy --demo
 ### Example
 #### Deploy aws-foundation in one region (ap-southeast-1)
 ```
-sh ./run_tf apply --aws-foundation "ap-southeast-1"
+sh ./run-tf apply --aws-foundation "ap-southeast-1"
 ```
 
 #### Deploy aws-foundation in two regions (ap-southeast-1 and ap-southeast-2)
 ```
-sh ./run_tf apply --aws-foundation "ap-southeast-1 ap-southeast-2"
+sh ./run-tf apply --aws-foundation "ap-southeast-1 ap-southeast-2"
 ```
 
 #### Destroy aws-foundation in one region (ap-southeast-1)
 ```
-sh ./run_tf destroy --aws-foundation "ap-southeast-1"
+sh ./run-tf destroy --aws-foundation "ap-southeast-1"
 ```
 
 #### Destroy aws-foundation in two regions (ap-southeast-1 and ap-southeast-2)
 ```
-sh ./run_tf destroy --aws-foundation "ap-southeast-1 ap-southeast-2"
+sh ./run-tf destroy --aws-foundation "ap-southeast-1 ap-southeast-2"
 ```
 #### Print_usage
 ```
-sh ./run_tf apply --help
+sh ./run-tf apply --help
 
 Options:
 
